@@ -10,6 +10,8 @@ The workflow is intended to make the modelling process easier to run by
 guiding the user from a structure input through sequence extraction,
 alignment, missing-region identification, model generation, and ranking.
 
+<img width="1774" height="887" alt="Image" src="https://github.com/user-attachments/assets/a98b444f-5745-4b2a-ab8b-dee4df97cd09" />
+
 > **Important:** The current workflow uses the PDB structure supplied by
 > the user (or a PDB ID supplied at the command line) as its template.
 > It does not automatically search the PDB database for the best
