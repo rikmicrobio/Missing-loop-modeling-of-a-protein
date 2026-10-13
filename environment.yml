@@ -1,0 +1,10 @@
+name: modus-prime
+channels:
+  - salilab
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.10
+  - modeller
+  - clustalo
