@@ -66,6 +66,11 @@ alignment, missing-region identification, model generation, and ranking.
 7.  **Model evaluation and ranking**\
     Rank the generated models using the scoring methods available in the
     pipeline, then inspect the selected model and logs.
+    ```
+    
+    <img width="1774" height="887" alt="Image" src="https://github.com/user-attachments/assets/cee6b5d0-727f-44da-bcb7-b0ac3f16078c" />
+
+    ```
 
 ## Requirements
 
