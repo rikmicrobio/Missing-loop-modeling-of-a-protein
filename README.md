@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🧬 Modus-Prime-RGLAB
+# Modus-Prime-RGLAB
 ### Native PDB Protein Modelling Pipeline
 
 **Select a native PDB structure → identify missing regions → build and rank protein models**
