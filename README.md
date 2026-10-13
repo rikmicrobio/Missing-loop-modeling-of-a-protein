@@ -1,351 +1,237 @@
-<div align="center">
-
 # Modus-Prime-RGLAB
-### Native PDB Protein Modelling Pipeline
 
-**Select a native PDB structure → identify missing regions → build and rank protein models**
+## Project Information
 
-</div>
+**Modus-Prime-RGLAB** is a Python-based protein modelling workflow
+designed to build and rank comparative protein models using a supplied
+native/template structure in PDB format and MODELLER.
 
----
+The workflow is intended to make the modelling process easier to run by
+guiding the user from a structure input through sequence extraction,
+alignment, missing-region identification, model generation, and ranking.
 
-## Table of Contents
+> **Important:** The current workflow uses the PDB structure supplied by
+> the user (or a PDB ID supplied at the command line) as its template.
+> It does not automatically search the PDB database for the best
+> homologous template.
 
-- [Overview](#overview)
-- [Pipeline workflow](#pipeline-workflow)
-- [Requirements](#requirements)
-- [Installation](#installation)
-- [Configure MODELLER](#configure-modeller)
-- [Run the pipeline](#run-the-pipeline)
-- [Using your own full-length sequence](#using-your-own-full-length-sequence)
-- [Optional settings](#optional-settings)
-- [Understanding the output](#understanding-the-output)
-- [Troubleshooting](#troubleshooting)
-- [Scientific considerations](#scientific-considerations)
+## Key Features
 
-## Overview
+-   **Native PDB input:** Select a local `.pdb`/`.ent` file using the
+    file picker, or provide its path at the command line.
+-   **Chain selection:** Model one protein chain per run.
+-   **Sequence extraction:** Extract the observed sequence from the
+    structure and use PDB `SEQRES` records when available.
+-   **Full-length sequence support:** Supply a FASTA file when the full
+    target sequence is needed.
+-   **Sequence alignment:** Use Clustal Omega or provide an existing
+    alignment.
+-   **Missing-region identification:** Identify gaps between the target
+    sequence and template structure.
+-   **Comparative modelling:** Build models using MODELLER.
+-   **Optional loop refinement:** Refine missing regions using
+    MODELLER's loop-modelling functionality when enabled.
+-   **Model ranking:** Compare generated models using available
+    modelling scores.
+-   **Separate run directory:** Keep intermediate files, models,
+    rankings, and logs separate from the original input structure.
+-   **Terminal branding:** Display the Modus-Prime-RGLAB banner when the
+    pipeline starts.
 
-**Modus-Prime-RGLAB** is a Python workflow for modelling protein structures from a native/template **PDB-format** structure. It extracts the observed template sequence, uses the PDB's `SEQRES` records when available (or a user-provided FASTA sequence), aligns sequences, identifies missing regions, builds models with MODELLER, and ranks the resulting structures.
+## Workflow
 
-The pipeline displays the Modus-Prime-RGLAB ASCII banner in green when launched. The original input structure is not modified; run files are written to a separate working directory.
+1.  **Input structure and sequence**\
+    Select a local PDB file or provide a PDB ID. Supply a full-length
+    FASTA sequence if required.
 
-> **Input format:** PDB (`.pdb` or `.ent`) with `ATOM` records. mmCIF files are not accepted as input by this workflow.
+2.  **Sequence extraction**\
+    Extract the observed residues for the selected chain. When present,
+    PDB `SEQRES` records can provide the full sequence.
 
-## Pipeline workflow
+3.  **Sequence alignment**\
+    Align the target sequence and template sequence using Clustal Omega,
+    or use a supplied alignment.
 
-```text
-Native PDB structure
-        │
-        ▼
-Select protein chain
-        │
-        ▼
-Extract observed template sequence
-        │
-        ├── Use PDB SEQRES sequence, when available
-        └── Or provide a full-length FASTA sequence
-        │
-        ▼
-Sequence alignment (Clustal Omega or supplied alignment)
-        │
-        ▼
-Identify missing regions / gaps
-        │
-        ▼
-Build comparative models (MODELLER)
-        │
-        ├── Optional: refine missing regions with LoopModel
-        ▼
-Rank models and save output structures
-```
+4.  **Missing-region identification**\
+    Identify sequence regions that are not represented in the template
+    coordinates.
+
+5.  **Initial model building**\
+    Use MODELLER to generate comparative protein models based on the
+    template and alignment.
+
+6.  **Optional loop refinement and optimization**\
+    Refine selected missing regions when loop modelling is enabled.
+
+7.  **Model evaluation and ranking**\
+    Rank the generated models using the scoring methods available in the
+    pipeline, then inspect the selected model and logs.
 
 ## Requirements
 
-| Requirement | Purpose |
-|---|---|
-| Python | Runs the pipeline scripts; use a version compatible with your MODELLER installation |
-| Conda | Recommended for managing the environment |
-| MODELLER | Required for comparative modelling; follow the official installation and licence instructions |
-| Clustal Omega (`clustalo`) | Used for sequence alignment unless you provide an aligned FASTA file |
-| Tkinter / desktop GUI | Opens the PDB file picker; if unavailable, the script prompts for the file path |
-| PDB structure | A local `.pdb`/`.ent` file or a valid four-character RCSB PDB ID |
+-   Python version compatible with the installed MODELLER release
+-   Conda (recommended for environment management)
+-   MODELLER, correctly installed and licensed
+-   Clustal Omega, unless a compatible alignment is supplied
+-   Tkinter and a graphical desktop for the file-selection dialog;
+    command-line input can be used when a GUI is unavailable
+-   A protein structure in PDB format
 
-A GPU is **not required** for the standard workflow.
+A GPU is not required for the standard workflow.
 
-## Installation
+## Input Options
 
-### 1. Download the repository
+### Local PDB file
 
-Clone the GitHub repository:
-
-```bash
-git clone <YOUR-GITHUB-REPOSITORY-URL>
-cd <YOUR-REPOSITORY-FOLDER>
+``` bash
+python run_pipeline.py --pdb path/to/protein.pdb --chain A
 ```
 
-Alternatively, download the repository as a ZIP from GitHub and extract it. Change into the directory that contains `run_pipeline.py`.
+### Interactive selection
 
-### 2. Create and activate a Conda environment
-
-Start with a dedicated environment. Python 3.10 is an example; the correct version depends on the MODELLER release available for your operating system.
-
-```bash
-conda create -n modus-prime python=3.10 -y
-conda activate modus-prime
-```
-
-If MODELLER cannot be installed in this environment, use a Python version supported by the MODELLER package you are installing. Avoid mixing packages across unrelated Python environments.
-
-### 3. Install MODELLER
-
-Install MODELLER using the official instructions for your operating system and release. A Conda installation may be available with:
-
-```bash
-conda install -c salilab modeller
-```
-
-If that command is unavailable or produces dependency conflicts, consult the official [MODELLER documentation](https://salilab.org/modeller/) for the appropriate package and installation route.
-
-**Licence setup:** MODELLER requires a valid licence key, including for academic use. Obtain and configure the key as instructed by MODELLER. The pipeline checks that MODELLER can start before beginning the modelling steps.
-
-### 4. Install Clustal Omega
-
-With the `modus-prime` environment active:
-
-```bash
-conda install -c conda-forge -c bioconda clustalo -y
-```
-
-Check that it is available:
-
-```bash
-clustalo --version
-```
-
-Clustal Omega can be omitted if you supply a compatible aligned FASTA file with `--aligned`.
-
-### 5. Check Tkinter / file selection
-
-Test Tkinter:
-
-```bash
-python -c "import tkinter; print('Tkinter OK')"
-```
-
-If the test fails on Ubuntu/WSL, the operating-system package may be required:
-
-```bash
-sudo apt update
-sudo apt install python3-tk
-```
-
-This installs Tkinter for the system Python; a Conda Python may need separate configuration. On systems without a graphical desktop, the pipeline can prompt you to enter the PDB path in the terminal instead.
-
-### 6. Verify the main dependencies
-
-Run these commands in the activated environment:
-
-```bash
-python --version
-python -c "from modeller import Environ; Environ(); print('MODELLER OK')"
-clustalo --version
-python -c "import tkinter; print('Tkinter OK')"
-```
-
-The MODELLER test should only be considered successful if the licence is configured and `Environ()` starts without an error. Tkinter is optional when you use the command-line `--pdb` option.
-
-## Run the pipeline
-
-### Option A — Select a local PDB interactively
-
-From the directory containing `run_pipeline.py`:
-
-```bash
-conda activate modus-prime
+``` bash
 python run_pipeline.py
 ```
 
-1. The green Modus-Prime-RGLAB banner appears in the terminal.
-2. Select your local `.pdb` or `.ent` file in the file picker.
-3. The pipeline uses the first available chain by default.
-4. The pipeline runs the sequence, alignment, gap-identification, modelling, and ranking steps.
-5. Results are saved in a run directory, normally named `<PDB_BASENAME>_run/`.
+When a graphical desktop is available, select the PDB file in the
+file-selection window.
 
-If a graphical file picker cannot open, enter the PDB path when prompted.
+### PDB ID
 
-### Option B — Provide the PDB path and chain
-
-```bash
-python run_pipeline.py --pdb path/to/native_structure.pdb --chain A
-```
-
-Replace `path/to/native_structure.pdb` with your actual file path and `A` with a chain present in the structure.
-
-On Windows, quote paths containing spaces:
-
-```powershell
-python run_pipeline.py --pdb "C:\Users\YourName\Desktop\protein structure.pdb" --chain A
-```
-
-### Option C — Use a PDB ID
-
-If the supplied value is not an existing local file and matches a four-character PDB ID, the pipeline attempts to download the structure from RCSB PDB. Internet access is required.
-
-```bash
+``` bash
 python run_pipeline.py --pdb 6I07 --chain A
 ```
 
-## Using your own full-length sequence
+A PDB ID can be used to retrieve a structure from RCSB PDB if the
+pipeline's download path is available and the computer has internet
+access.
 
-A PDB structure may not contain coordinates for every residue. If the PDB has `SEQRES` records, the pipeline uses them as the full sequence by default. If `SEQRES` records are absent, it extracts the observed sequence from the structure; unresolved residues cannot be recovered from coordinates alone.
+### Full-length FASTA sequence
 
-To model against a full-length sequence, prepare a FASTA file, for example `full_length.fasta`:
-
-```fasta
->target_protein
-MKK...REPLACE_WITH_THE_FULL_LENGTH_AMINO_ACID_SEQUENCE...K
-```
-
-Run:
-
-```bash
+``` bash
 python run_pipeline.py \
-  --pdb path/to/native_structure.pdb \
+  --pdb path/to/protein.pdb \
   --chain A \
   --target full_length.fasta
 ```
 
-On Windows PowerShell, the same command can be entered on one line:
+Use the complete target sequence when the PDB structure does not
+represent all residues. Coordinates alone cannot reveal the identities
+of unresolved residues.
 
-```powershell
-python run_pipeline.py --pdb "C:\path\to\native_structure.pdb" --chain A --target "C:\path\to\full_length.fasta"
+## Output
+
+The pipeline writes run-specific files to a separate work directory.
+Depending on the run and enabled options, outputs may include:
+
+-   A staged copy of the input PDB
+-   Extracted sequence files
+-   A MODELLER alignment file
+-   A record of identified gaps or missing regions
+-   Generated model PDB files
+-   A model-ranking table containing available scores
+-   The best-ranked model according to the pipeline's ranking rule
+-   Logs from individual pipeline steps
+
+The exact file names depend on the input structure and pipeline
+configuration. Consult the run directory and logs for the files
+generated by a particular execution.
+
+## Installation
+
+A typical setup uses Conda:
+
+``` bash
+conda create -n modus-prime python=3.10 -y
+conda activate modus-prime
 ```
 
-Use the complete amino-acid sequence for the intended target. Confirm that the selected chain and target sequence correspond to the same protein.
+Install MODELLER using the official instructions for the version and
+operating system in use. A Conda package may be available with:
 
-## Optional settings
-
-### Build multiple models and refine loops
-
-The pipeline builds five models by default. To enable loop refinement:
-
-```bash
-python run_pipeline.py \
-  --pdb path/to/native_structure.pdb \
-  --chain A \
-  --target full_length.fasta \
-  --loop \
-  --models 5 \
-  --loop-models 20
+``` bash
+conda install -c salilab modeller
 ```
 
-This requests five comparative models and 20 loop-refinement models per model. Loop refinement can increase runtime.
+MODELLER requires licence configuration. Then install Clustal Omega if
+needed:
 
-### Common command-line options
-
-| Option | Description |
-|---|---|
-| `--pdb FILE_OR_ID` | Local PDB file or four-character RCSB PDB ID. If omitted, a file picker opens |
-| `--chain A` | Select the chain to process; defaults to the first available protein chain |
-| `--target FILE.fasta` | Full-length target sequence in FASTA format |
-| `--aligned FILE` | Use a supplied aligned FASTA (template sequence first); skips Clustal Omega |
-| `--workdir DIR` | Choose the output/work directory |
-| `--models N` | Number of comparative models to build (default: `5`) |
-| `--loop` | Enable missing-region refinement with MODELLER `LoopModel` |
-| `--loop-models N` | Loop-refinement models per model (default: `10`) |
-| `--md-level LEVEL` | Modelling refinement level: `very_fast`, `fast`, `slow`, or `very_slow` |
-| `--flank N` | Additional residues to refine on each side of a gap (default: `2`) |
-| `--include-termini` | Also refine missing N- and C-terminal tails |
-| `--start-at STEP` | Resume at `getseq`, `align`, or `model`; required earlier output files must already exist |
-| `--install-missing` | Ask the script to install Clustal Omega with Conda if it is missing |
-| `--verbose` | Display full output from each pipeline step |
-| `--soap` | Also calculate SOAP-Protein-OD; requires its supporting library |
-
-To view the available options:
-
-```bash
-python run_pipeline.py --help
-```
-
-Individual steps also support help, for example:
-
-```bash
-python getseq.py --help
-python make_alignment.py --help
-python model-single.py --help
-```
-
-## Understanding the output
-
-For a local structure such as `native_structure.pdb`, the default work directory is `native_structure_run/`. The exact file prefix depends on the selected PDB file or PDB ID.
-
-| Output | Description |
-|---|---|
-| `<code>.pdb` | Staged working copy of the input structure; the original is left unchanged |
-| `<code>.seq` | Observed template sequence |
-| `<code>_seqres.fasta` | Full sequence extracted from PDB `SEQRES` records, when available |
-| `<code>_alignment.ali` | MODELLER alignment used to build models |
-| `<code>_gaps.json` | Detected missing regions/gaps |
-| `<code>_modelled.B*.pdb` | Individual generated models |
-| `<code>_modelled_ranking.tsv` | Model ranking, including available DOPE and GA341 scores |
-| `<code>_modelled_best.pdb` | Best-ranked model according to the pipeline's ranking rule |
-| `logs/` | Step-specific logs, useful for diagnosing errors |
-
-**Model ranking:** lower DOPE scores are generally preferred when comparing models of the same target under comparable conditions. GA341 values closer to 1 can support confidence in the fold, but neither score replaces structural validation.
-
-## Troubleshooting
-
-### `Modeller could not start`
-
-- Confirm that `modus-prime` is activated.
-- Confirm that MODELLER is installed in that exact environment.
-- Check that your MODELLER licence key is correctly configured.
-- Run the verification command from the [installation section](#6-verify-the-main-dependencies).
-
-### `clustalo not found`
-
-Install it in the active environment:
-
-```bash
+``` bash
 conda install -c conda-forge -c bioconda clustalo -y
 ```
 
-Alternatively, supply a compatible aligned FASTA file with `--aligned`.
+Verify the main tools:
 
-### The file picker does not open
-
-- Check Tkinter with `python -c "import tkinter"`.
-- Use a desktop-enabled terminal session, or enter the PDB path when prompted.
-- For headless sessions, bypass the picker:
-
-```bash
-python run_pipeline.py --pdb /absolute/path/to/native_structure.pdb --chain A
+``` bash
+python --version
+python -c "from modeller import Environ; Environ(); print('MODELLER OK')"
+clustalo --version
 ```
 
-### `chain not in PDB`
+See `README.md` or `INSTALLATION.md` in this repository for the full
+installation and troubleshooting instructions.
 
-Check the chain identifiers present in the structure and use one of those values with `--chain`. The pipeline processes one chain per run.
+## Important Limitations
 
-### Missing residues or gaps are not reconstructed as expected
+-   The current workflow does not automatically search for and rank
+    homologous PDB templates.
+-   The quality of the model depends on the selected template, sequence
+    alignment, and amount of missing structure.
+-   If `SEQRES` records are absent, the sequence extracted from atomic
+    coordinates may omit unresolved residues.
+-   Long loops and missing terminal regions may be uncertain and should
+    be checked carefully.
+-   Generated structures are computational predictions, not
+    experimentally verified structures.
+-   Model scores should not be treated as a substitute for structural
+    validation.
 
-The coordinates in a PDB cannot reveal the identity of unresolved residues. Supply the full-length sequence with `--target full_length.fasta`. Inspect the alignment and `*_gaps.json` before interpreting the model.
+## Validation Recommendations
 
-### A pipeline step fails
+Before using a model for docking, publication, or downstream analyses:
 
-Read the relevant file in the run directory's `logs/` folder. The terminal error should identify the failed step and its log path. Fix the underlying issue before restarting or resuming.
+-   Inspect the target-template alignment and identified gaps.
+-   Examine the model structure and any reconstructed loops.
+-   Check stereochemistry, clashes, and other structural-quality
+    measures.
+-   Review model scores in the context of the target and modelling
+    method.
+-   Record the input PDB, chain, target sequence, parameters, and
+    software versions for reproducibility.
 
-## Scientific considerations
+## Project Structure
 
-- Models are computational predictions, not experimentally determined structures.
-- Long loops and unresolved terminal regions can be especially uncertain; inspect them carefully.
-- Review sequence alignment, gap definitions, model scores, stereochemistry, clashes, and other structural-quality metrics before using models for docking, publication, or downstream analyses.
-- Run one chain at a time. Repeat with a different `--chain` value to process another chain.
+The repository may include the following files, depending on the
+distributed version:
 
----
+  File                  Purpose
+  --------------------- -------------------------------------------------
+  `run_pipeline.py`     Main pipeline entry point
+  `getseq.py`           Sequence extraction
+  `pdb_to_fasta.py`     Sequence extraction from PDB records
+  `make_alignment.py`   Sequence alignment and gap processing
+  `model-single.py`     MODELLER model generation and ranking
+  `environment.yml`     Conda environment specification, if provided
+  `README.md`           GitHub landing page and usage guide
+  `INSTALLATION.md`     Detailed installation instructions, if provided
 
-<div align="center">
+Always check the repository version for the actual files included.
 
-**Modus-Prime-RGLAB**  
-*Native PDB Modelling Pipeline*
+## Acknowledgements and Software
 
-</div>
+-   **MODELLER:** <https://salilab.org/modeller/>
+-   **Clustal Omega:** <https://www.ebi.ac.uk/jdispatcher/msa/clustalo>
+-   **RCSB Protein Data Bank:** <https://www.rcsb.org/>
+
+Please follow the respective software terms, licence requirements, and
+citation guidance.
+
+## Contact and Contributions
+
+For bug reports, feature requests, or contributions, use the Issues and
+Pull Requests sections of the GitHub repository.
+
+------------------------------------------------------------------------
+
+**Modus-Prime-RGLAB**\
+*Native PDB Protein Modelling Pipeline*
